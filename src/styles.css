@@ -130,7 +130,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 38px; /* rowna wysokosc kazdego wiersza */
+  height: 48px; /* rowna wysokosc kazdego wiersza, z oddechem gora/dol */
 }
 .item-name {
   flex: 1;
@@ -264,30 +264,26 @@ body {
 }
 .handle:hover { color: var(--muted-foreground); }
 
-/* Staly kafelek LZS na dole listy */
-.lzs-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  font-family: inherit;
-  font-size: 12px;
-  color: var(--foreground);
-  background: hsl(142 55% 95%);
-  border: 1px solid hsl(142 45% 80%);
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-top: 2px;
+/* Posty LZS jako zwykla karta na liscie (zielony akcent) */
+.lzs-item {
+  background: hsl(142 55% 96%);
+  border-color: hsl(142 45% 82%);
   cursor: pointer;
 }
-.lzs-row:hover { background: hsl(142 55% 91%); }
+.lzs-item:hover { background: hsl(142 55% 92%); }
 .lzs-dot {
-  width: 8px;
-  height: 8px;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: hsl(142 70% 40%);
 }
-.lzs-go { margin-left: auto; color: var(--muted-foreground); font-size: 11px; }
+.chip-green {
+  color: hsl(142 70% 28%);
+  border-color: hsl(142 45% 70%);
+  font-weight: 600;
+}
+.lzs-go { color: var(--muted-foreground); font-size: 13px; padding: 0 4px; }
 
 /* Szybkie dodawanie */
 .quick-add {

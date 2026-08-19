@@ -209,7 +209,7 @@ export default function TaskList({ userId }: { userId: string }) {
       {error && <p className="error">{error}</p>}
       {loading ? (
         <p className="muted">Ładowanie...</p>
-      ) : zadania.length === 0 ? (
+      ) : zadania.length === 0 && lzs === 0 ? (
         <p className="muted empty">Wszystko zrobione 🎉</p>
       ) : (
         <ul className="lista">
@@ -276,15 +276,17 @@ export default function TaskList({ userId }: { userId: string }) {
               </li>
             );
           })}
+          {lzs > 0 && (
+            <li className="item lzs-item" onClick={() => openUrl(`${PANEL_URL}/posty-lzs`)}>
+              <div className="item-row">
+                <span className="lzs-dot" />
+                <span className="item-name">Posty LZS do zrobienia</span>
+                <span className="chip chip-green">{lzs}</span>
+                <span className="lzs-go">→</span>
+              </div>
+            </li>
+          )}
         </ul>
-      )}
-
-      {lzs > 0 && (
-        <button className="lzs-row" onClick={() => openUrl(`${PANEL_URL}/posty-lzs`)}>
-          <span className="lzs-dot" />
-          Posty LZS do zrobienia: <strong>{lzs}</strong>
-          <span className="lzs-go">otwórz →</span>
-        </button>
       )}
 
       <form className="quick-add" onSubmit={dodaj}>
