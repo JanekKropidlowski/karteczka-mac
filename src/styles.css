@@ -171,23 +171,26 @@ body {
 .prio-dot.p2 { background: var(--destructive); border-color: var(--destructive); }
 .trash {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   border: none;
   background: transparent;
   color: var(--muted-foreground);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 0;
   border-radius: 6px;
-  align-self: flex-start;
 }
 .trash:hover { color: var(--destructive); background: var(--muted); }
 .trash.confirm {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   color: white;
   background: var(--destructive);
-  padding: 3px 7px;
-  align-self: center;
 }
 .check {
   flex-shrink: 0;
