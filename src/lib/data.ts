@@ -9,6 +9,12 @@ export interface Zadanie {
   status: string;
   deadline: string | null; // ISO date
   sort_order: number | null;
+  clients: { name: string } | null; // przypisany klient ("dla kogo")
+}
+
+export interface Klient {
+  id: string;
+  name: string;
 }
 
 export interface Notatka {
@@ -44,20 +50,47 @@ export function sortujZadania(zadania: Zadanie[]): Zadanie[] {
 export async function listaZadan(): Promise<Zadanie[]> {
   const { data, error } = await supabase
     .from("projects")
-    .select("id, name, status, deadline, sort_order")
+    .select("id, name, status, deadline, sort_order, clients(name)")
     .not("status", "in", `(${OTWARTE.join(",")})`);
   if (error) throw error;
-  return sortujZadania((data ?? []) as Zadanie[]);
+  return sortujZadania((data ?? []) as unknown as Zadanie[]);
 }
 
-export async function dodajZadanie(name: string, userId: string): Promise<void> {
+export async function listaKlientow(): Promise<Klient[]> {
+  const { data, error } = await supabase
+    .from("clients")
+    .select("id, name")
+    .eq("is_active", true)
+    .order("name");
+  if (error) throw error;
+  return (data ?? []) as Klient[];
+}
+
+export async function dodajZadanie(
+  name: string,
+  userId: string,
+  clientId?: string | null
+): Promise<void> {
   const { error } = await supabase.from("projects").insert({
     user_id: userId,
     name,
     date: dzisIso(),
     status: "pending",
     tags: [],
+    client_id: clientId || null,
   });
+  if (error) throw error;
+}
+
+/**
+ * "Usuniecie" = archiwizacja (status archived): znika z listy i z dashboardu
+ * panelu, ale zostaje w Archiwum panelu z mozliwoscia przywrocenia.
+ */
+export async function usunZadanie(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("projects")
+    .update({ status: "archived" })
+    .eq("id", id);
   if (error) throw error;
 }
 
