@@ -1,0 +1,86 @@
+/* Styl spójny z panelem (slate, shadcn-owe tokeny), jasny/ciemny wg systemu */
+:root {
+  --bg: hsl(0 0% 100%);
+  --fg: hsl(222.2 84% 4.9%);
+  --muted: hsl(215.4 16.3% 46.9%);
+  --border: hsl(214.3 31.8% 91.4%);
+  --accent: hsl(222.2 47.4% 11.2%);
+  --accent-fg: hsl(210 40% 98%);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: hsl(222.2 84% 4.9%);
+    --fg: hsl(210 40% 98%);
+    --muted: hsl(215 20.2% 65.1%);
+    --border: hsl(217.2 32.6% 17.5%);
+    --accent: hsl(210 40% 98%);
+    --accent-fg: hsl(222.2 47.4% 11.2%);
+  }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 13px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.karteczka {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  cursor: grab;
+}
+.title { font-weight: 600; }
+.hide-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.hide-btn:hover { color: var(--fg); }
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+.placeholder { color: var(--fg); margin-bottom: 8px; }
+.hint { color: var(--muted); font-size: 12px; }
+
+.footer {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+}
+.footer button {
+  flex: 1;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 5px 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+.footer button:hover { background: var(--border); }
