@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIcon, TrayIconBuilder},
-    Manager, State,
+    Manager, RunEvent, State,
 };
 
 struct TrayHandle(Mutex<Option<TrayIcon>>);
@@ -67,6 +67,15 @@ fn main() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("blad uruchamiania karteczki");
+        .build(tauri::generate_context!())
+        .expect("blad uruchamiania karteczki")
+        .run(|app, event| {
+            // Klik w ikone w Docku (Reopen) przywraca schowane okno
+            if let RunEvent::Reopen { .. } = event {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            }
+        });
 }
