@@ -4,7 +4,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { register, isRegistered } from "@tauri-apps/plugin-global-shortcut";
 import { enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { supabase } from "./lib/supabase";
+import { dzisIso, liczbaNaDzis, listaZadan, przeterminowane } from "./lib/data";
 import Login from "./components/Login";
 import TaskList from "./components/TaskList";
 import NotesTab from "./components/NotesTab";
@@ -50,6 +56,36 @@ export default function App() {
       }
     })();
   }, []);
+
+  // Poranne powiadomienie systemowe ok. 8:00 (lokalne, zero maili):
+  // "X zadan na dzis, Y po terminie". Raz dziennie, tylko gdy jest co pokazac.
+  useEffect(() => {
+    if (!session) return;
+    const sprawdz = async () => {
+      const teraz = new Date();
+      if (teraz.getHours() !== 8 || teraz.getMinutes() > 4) return;
+      if (localStorage.getItem("ostatniePowiadomienie") === dzisIso()) return;
+      try {
+        let ok = await isPermissionGranted();
+        if (!ok) ok = (await requestPermission()) === "granted";
+        if (!ok) return;
+        const zadania = await listaZadan();
+        const naDzis = liczbaNaDzis(zadania);
+        const poTerminie = zadania.filter(przeterminowane).length;
+        if (naDzis === 0) return;
+        localStorage.setItem("ostatniePowiadomienie", dzisIso());
+        sendNotification({
+          title: "Karteczka",
+          body: `${naDzis} zadań na dziś${poTerminie ? `, w tym ${poTerminie} po terminie` : ""}`,
+        });
+      } catch (e) {
+        console.error("powiadomienie:", e);
+      }
+    };
+    sprawdz();
+    const t = window.setInterval(sprawdz, 60_000);
+    return () => window.clearInterval(t);
+  }, [session]);
 
   const wyloguj = useCallback(() => supabase.auth.signOut(), []);
 

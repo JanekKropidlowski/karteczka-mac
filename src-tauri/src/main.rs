@@ -1,20 +1,35 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
-    Manager,
+    tray::{TrayIcon, TrayIconBuilder},
+    Manager, State,
 };
+
+struct TrayHandle(Mutex<Option<TrayIcon>>);
+
+/// Licznik zadan na dzis obok ikonki w pasku menu (puste = zero)
+#[tauri::command]
+fn set_tray_count(state: State<TrayHandle>, count: u32) {
+    if let Some(tray) = state.0.lock().unwrap().as_ref() {
+        let title: Option<String> = if count > 0 { Some(count.to_string()) } else { None };
+        let _ = tray.set_title(title);
+    }
+}
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .manage(TrayHandle(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![set_tray_count])
         .setup(|app| {
             let win = app
                 .get_webview_window("main")
@@ -28,7 +43,7 @@ fn main() {
             let quit = MenuItem::with_id(app, "quit", "Zakończ", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
 
-            TrayIconBuilder::new()
+            let tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().expect("brak ikony").clone())
                 .tooltip("Karteczka")
                 .menu(&menu)
@@ -47,6 +62,8 @@ fn main() {
                     _ => {}
                 })
                 .build(app)?;
+
+            *app.state::<TrayHandle>().0.lock().unwrap() = Some(tray);
 
             Ok(())
         })

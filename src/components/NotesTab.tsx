@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Notatka, dodajNotatke, listaNotatek, odhaczNotatke } from "../lib/data";
+import { Notatka, dodajNotatke, listaNotatek, nasluchujZmian, odhaczNotatke } from "../lib/data";
 
 const POLL_MS = 30_000;
 
@@ -25,8 +25,12 @@ export default function NotesTab({ userId }: { userId: string }) {
 
   useEffect(() => {
     odswiez();
+    const stop = nasluchujZmian(["reminders"], odswiez);
     timer.current = window.setInterval(odswiez, POLL_MS);
-    return () => window.clearInterval(timer.current);
+    return () => {
+      stop();
+      window.clearInterval(timer.current);
+    };
   }, [odswiez]);
 
   const odhacz = async (id: string) => {
