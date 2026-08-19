@@ -161,6 +161,16 @@ export async function odhaczPodzadanie(id: string, completed: boolean): Promise<
  * Realtime: natychmiastowe odswiezanie po zmianach w bazie (publikacja
  * supabase_realtime wlaczona migracja 20260819210000). Zwraca funkcje sprzatajaca.
  */
+/** Liczba zgloszen LZS czekajacych na post (staly kafelek na karteczce). */
+export async function liczbaLzsDoZrobienia(): Promise<number> {
+  const { count, error } = await supabase
+    .from("lzs_submissions")
+    .select("id", { count: "exact", head: true })
+    .eq("is_done", false);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export function nasluchujZmian(tabele: string[], onChange: () => void): () => void {
   const channel = supabase.channel(`karteczka-${tabele.join("-")}`);
   for (const table of tabele) {

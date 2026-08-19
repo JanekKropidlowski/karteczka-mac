@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   Klient,
   Podzadanie,
   Zadanie,
   dodajZadanie,
   etykietaTerminu,
+  liczbaLzsDoZrobienia,
   liczbaNaDzis,
   listaKlientow,
   listaPodzadan,
@@ -20,11 +22,13 @@ import {
 } from "../lib/data";
 
 const POLL_MS = 60_000; // fallback, realtime robi robote na biezaco
-const PRIORYTETY = ["", "ważne", "PILNE"];
+const PRIORYTETY = ["zwykłe", "ważne", "PILNE"];
+const PANEL_URL = "https://task.kropidlowscy.pl";
 
 export default function TaskList({ userId }: { userId: string }) {
   const [zadania, setZadania] = useState<Zadanie[]>([]);
   const [klienci, setKlienci] = useState<Klient[]>([]);
+  const [lzs, setLzs] = useState<number>(0);
   const [podzadania, setPodzadania] = useState<Record<string, Podzadanie[]>>({});
   const [rozwiniete, setRozwiniete] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,30 +40,13 @@ export default function TaskList({ userId }: { userId: string }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const przeciagnij = async (nadId: string) => {
-    if (!dragId || dragId === nadId) return;
-    const kolejnosc = [...zadania];
-    const from = kolejnosc.findIndex((z) => z.id === dragId);
-    const to = kolejnosc.findIndex((z) => z.id === nadId);
-    if (from < 0 || to < 0) return;
-    const [el] = kolejnosc.splice(from, 1);
-    kolejnosc.splice(to, 0, el);
-    setZadania(kolejnosc); // optymistycznie
-    setDragId(null);
-    try {
-      await zapiszKolejnosc(kolejnosc.map((z) => z.id));
-    } catch (e) {
-      console.error(e);
-      odswiez();
-    }
-  };
-
   const odswiez = useCallback(async () => {
     try {
       const lista = await listaZadan();
       setZadania(lista);
       setError(null);
       invoke("set_tray_count", { count: liczbaNaDzis(lista) }).catch(() => {});
+      liczbaLzsDoZrobienia().then(setLzs).catch(() => {});
     } catch (e) {
       setError("Nie udało się pobrać zadań");
       console.error(e);
@@ -71,11 +58,10 @@ export default function TaskList({ userId }: { userId: string }) {
   useEffect(() => {
     odswiez();
     listaKlientow().then(setKlienci).catch(console.error);
-    const stop = nasluchujZmian(["projects", "tasks"], odswiez);
+    const stop = nasluchujZmian(["projects", "tasks", "lzs_submissions"], odswiez);
     const timer = window.setInterval(odswiez, POLL_MS);
     const onFocus = () => odswiez();
     window.addEventListener("focus", onFocus);
-    // Cmd+N = kursor w polu dodawania
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
@@ -96,6 +82,40 @@ export default function TaskList({ userId }: { userId: string }) {
     const t = window.setTimeout(() => setConfirmId(null), 3000);
     return () => window.clearTimeout(t);
   }, [confirmId]);
+
+  // Plynny drag&drop na pointer events (HTML5 DnD w webview jest toporne):
+  // lapiesz za uchwyt, wiersze przestawiaja sie na zywo, puszczenie zapisuje.
+  const startDrag = (e: React.PointerEvent, id: string) => {
+    e.preventDefault();
+    setDragId(id);
+    const move = (ev: PointerEvent) => {
+      const el = document
+        .elementFromPoint(ev.clientX, ev.clientY)
+        ?.closest("li[data-id]") as HTMLElement | null;
+      const overId = el?.dataset.id;
+      if (!overId || overId === id) return;
+      setZadania((lista) => {
+        const from = lista.findIndex((z) => z.id === id);
+        const to = lista.findIndex((z) => z.id === overId);
+        if (from < 0 || to < 0 || from === to) return lista;
+        const kopia = [...lista];
+        const [x] = kopia.splice(from, 1);
+        kopia.splice(to, 0, x);
+        return kopia;
+      });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setDragId(null);
+      setZadania((lista) => {
+        zapiszKolejnosc(lista.map((z) => z.id)).catch(() => odswiez());
+        return lista;
+      });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
 
   const odhacz = async (id: string) => {
     setZadania((z) => z.filter((x) => x.id !== id));
@@ -129,7 +149,7 @@ export default function TaskList({ userId }: { userId: string }) {
     );
     try {
       await ustawPriorytet(z.id, nowy);
-      odswiez(); // re-sort wg nowego priorytetu
+      odswiez();
     } catch (e) {
       console.error(e);
       odswiez();
@@ -200,51 +220,38 @@ export default function TaskList({ userId }: { userId: string }) {
             return (
               <li
                 key={z.id}
-                draggable
-                onDragStart={() => setDragId(z.id)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => przeciagnij(z.id)}
-                onDragEnd={() => setDragId(null)}
-                className={[
-                  "item",
-                  termin?.overdue ? "overdue" : "",
-                  z.priority === 2 ? "prio-pilne" : z.priority === 1 ? "prio-wazne" : "",
-                  dragId === z.id ? "dragging" : "",
-                ].join(" ")}
+                data-id={z.id}
+                className={dragId === z.id ? "item dragging" : "item"}
               >
                 <div className="item-row">
-                  <button className="check" title="Zrobione" onClick={() => odhacz(z.id)} />
-                  <span className="item-body" onClick={() => rozwin(z.id)}>
-                    <span className="item-name">{z.name}</span>
-                    <span className="item-meta">
-                      {z.priority > 0 && (
-                        <span className={z.priority === 2 ? "badge badge-red" : "badge badge-yellow"}>
-                          {PRIORYTETY[z.priority]}
-                        </span>
-                      )}
-                      {z.clients?.name && (
-                        <span className="badge badge-client">{z.clients.name}</span>
-                      )}
-                      {termin && (
-                        <span className={termin.overdue ? "badge badge-red" : "badge"}>
-                          {termin.text}
-                        </span>
-                      )}
-                    </span>
-                  </span>
-                  <button
-                    className="prio-btn"
-                    title="Zmień priorytet (zwykłe → ważne → pilne)"
-                    onClick={() => cyklPriorytetu(z)}
+                  <span
+                    className="handle"
+                    title="Przeciągnij, aby zmienić kolejność"
+                    onPointerDown={(e) => startDrag(e, z.id)}
                   >
-                    {z.priority === 2 ? "‼" : z.priority === 1 ? "!" : "·"}
-                  </button>
+                    ⠿
+                  </span>
+                  <button className="check" title="Zrobione" onClick={() => odhacz(z.id)} />
+                  <span className="item-name" title={z.name} onClick={() => rozwin(z.id)}>
+                    {z.name}
+                  </span>
+                  {z.clients?.name && <span className="chip">{z.clients.name}</span>}
+                  {termin && (
+                    <span className={termin.overdue ? "chip chip-red" : "chip"}>
+                      {termin.text}
+                    </span>
+                  )}
+                  <button
+                    className={`prio-dot p${z.priority ?? 0}`}
+                    title={`Priorytet: ${PRIORYTETY[z.priority ?? 0]} (klik zmienia)`}
+                    onClick={() => cyklPriorytetu(z)}
+                  />
                   <button
                     className={confirmId === z.id ? "trash confirm" : "trash"}
                     title={confirmId === z.id ? "Kliknij ponownie" : "Usuń (do Archiwum)"}
                     onClick={() => usun(z.id)}
                   >
-                    {confirmId === z.id ? "na pewno?" : "×"}
+                    {confirmId === z.id ? "?" : "×"}
                   </button>
                 </div>
                 {otwarte && (
@@ -271,6 +278,15 @@ export default function TaskList({ userId }: { userId: string }) {
           })}
         </ul>
       )}
+
+      {lzs > 0 && (
+        <button className="lzs-row" onClick={() => openUrl(`${PANEL_URL}/posty-lzs`)}>
+          <span className="lzs-dot" />
+          Posty LZS do zrobienia: <strong>{lzs}</strong>
+          <span className="lzs-go">otwórz →</span>
+        </button>
+      )}
+
       <form className="quick-add" onSubmit={dodaj}>
         <input
           ref={inputRef}

@@ -3,6 +3,9 @@
   "identifier": "default",
   "description": "Uprawnienia okna karteczki",
   "windows": ["main"],
+  "remote": {
+    "urls": ["https://task.kropidlowscy.pl"]
+  },
   "permissions": [
     "core:default",
     "core:window:allow-show",
