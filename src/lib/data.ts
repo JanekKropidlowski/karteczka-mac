@@ -158,6 +158,63 @@ export async function odhaczPodzadanie(id: string, completed: boolean): Promise<
 }
 
 /**
+ * Nowe podzadanie w zadaniu. Wzorzec insertu 1:1 z panelu (AddTaskDialog ->
+ * addTaskToProject): stage jest NOT NULL bez defaultu, panel dla recznie
+ * dopisanych zadan uzywa production + is_custom, wiec wpis z karteczki
+ * wyglada w panelu jak dopisany tam recznie.
+ */
+export async function dodajPodzadanie(
+  projectId: string,
+  name: string,
+  sortOrder: number
+): Promise<Podzadanie> {
+  const { data, error } = await supabase
+    .from("tasks")
+    .insert({
+      project_id: projectId,
+      name,
+      stage: "production",
+      status: "not_started",
+      completed: false,
+      is_custom: true,
+      sort_order: sortOrder,
+    })
+    .select("id, name, completed")
+    .single();
+  if (error) throw error;
+  return data as Podzadanie;
+}
+
+/** Podzadania kasujemy na twardo (nie ma archiwum podzadan w panelu). */
+export async function usunPodzadanie(id: string): Promise<void> {
+  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Licznik podzadan (zrobione/razem) dla widocznych zadan - jedno zapytanie,
+ * zeby wiersz mogl pokazac np. "1/3" bez rozwijania. Lista karteczki to
+ * kilkanascie pozycji, ale limit na wszelki wypadek (dlugie URI przy .in()).
+ */
+export async function liczbyPodzadan(
+  projectIds: string[]
+): Promise<Record<string, { razem: number; zrobione: number }>> {
+  if (projectIds.length === 0 || projectIds.length > 200) return {};
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("project_id, completed")
+    .in("project_id", projectIds);
+  if (error) throw error;
+  const wynik: Record<string, { razem: number; zrobione: number }> = {};
+  for (const t of (data ?? []) as { project_id: string; completed: boolean }[]) {
+    const w = (wynik[t.project_id] ??= { razem: 0, zrobione: 0 });
+    w.razem += 1;
+    if (t.completed) w.zrobione += 1;
+  }
+  return wynik;
+}
+
+/**
  * Realtime: natychmiastowe odswiezanie po zmianach w bazie (publikacja
  * supabase_realtime wlaczona migracja 20260819210000). Zwraca funkcje sprzatajaca.
  */

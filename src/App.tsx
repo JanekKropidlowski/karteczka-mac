@@ -128,11 +128,14 @@ export default function App() {
             </button>
           </nav>
           <main className="content">
-            {tab === "zadania" ? (
-              <TaskList userId={session.user.id} />
-            ) : (
-              <NotesTab userId={session.user.id} />
-            )}
+            {/* key po zakladce: przelaczenie przenika, nie przeskakuje */}
+            <div className="fade-tab" key={tab}>
+              {tab === "zadania" ? (
+                <TaskList userId={session.user.id} />
+              ) : (
+                <NotesTab userId={session.user.id} />
+              )}
+            </div>
           </main>
         </>
       )}

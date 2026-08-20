@@ -9,11 +9,17 @@ export default function NotesTab({ userId }: { userId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [nowa, setNowa] = useState("");
   const [busy, setBusy] = useState(false);
+  const [znikajace, setZnikajace] = useState<string[]>([]);
   const timer = useRef<number>();
+  const znikajaceRef = useRef<string[]>([]);
 
   const odswiez = useCallback(async () => {
     try {
-      setNotatki(await listaNotatek());
+      const lista = await listaNotatek();
+      setNotatki((poprzednie) => {
+        const trzymane = poprzednie.filter((n) => znikajaceRef.current.includes(n.id));
+        return trzymane.length ? [...trzymane, ...lista] : lista;
+      });
       setError(null);
     } catch (e) {
       setError("Nie udało się pobrać notatek");
@@ -22,6 +28,10 @@ export default function NotesTab({ userId }: { userId: string }) {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    znikajaceRef.current = znikajace;
+  }, [znikajace]);
 
   useEffect(() => {
     odswiez();
@@ -34,7 +44,12 @@ export default function NotesTab({ userId }: { userId: string }) {
   }, [odswiez]);
 
   const odhacz = async (id: string) => {
-    setNotatki((n) => n.filter((x) => x.id !== id));
+    if (znikajace.includes(id)) return;
+    setZnikajace((z) => [...z, id]);
+    window.setTimeout(() => {
+      setNotatki((n) => n.filter((x) => x.id !== id));
+      setZnikajace((z) => z.filter((x) => x !== id));
+    }, 190);
     try {
       await odhaczNotatke(id);
     } catch (e) {
@@ -70,9 +85,16 @@ export default function NotesTab({ userId }: { userId: string }) {
       ) : (
         <ul className="lista">
           {notatki.map((n) => (
-            <li key={n.id} className="item">
-              <button className="check" title="Zrobione" onClick={() => odhacz(n.id)} />
-              <span className="item-name">{n.title}</span>
+            <li
+              key={n.id}
+              className={znikajace.includes(n.id) ? "item znika-done" : "item"}
+            >
+              <div className="item-row">
+                <button className="check" title="Zrobione" onClick={() => odhacz(n.id)} />
+                <span className="item-name" title={n.title}>
+                  {n.title}
+                </span>
+              </div>
             </li>
           ))}
         </ul>

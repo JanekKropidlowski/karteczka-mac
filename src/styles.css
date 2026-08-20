@@ -15,6 +15,10 @@
   --destructive: hsl(0 84% 60%);
   --border: hsl(220 20% 90%);
   --radius: 14px;
+  /* Jeden jezyk ruchu dla calej karteczki */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --szybko: 120ms;
+  --ruch: 220ms;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -255,7 +259,6 @@ body {
 .pod.done span { text-decoration: line-through; color: var(--muted-foreground); }
 .check.mini { width: 13px; height: 13px; border-width: 1.5px; }
 .check.mini.checked { background: var(--accent); border-color: var(--accent); }
-.item.dragging { opacity: 0.5; border-style: dashed; }
 .handle {
   flex-shrink: 0;
   color: var(--border);
@@ -366,3 +369,299 @@ body {
   cursor: pointer;
 }
 .footer button:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+
+/* ==========================================================================
+   Ruch. Zasada: nic nie przeskakuje. Wiersze wjezdzaja, odlatuja i dojezdzaja
+   na nowe miejsca (FLIP w TaskList.tsx), panele rozwijaja sie na zmierzonej
+   wysokosci, hovery i przelaczniki maja krotkie przejscia. Kto ma wlaczone
+   "Ogranicz ruch" w macOS, dostaje wszystko natychmiastowe (blok na koncu).
+   ========================================================================== */
+
+.karteczka { animation: karteczka-start 260ms var(--ease) both; }
+@keyframes karteczka-start {
+  from { opacity: 0; transform: scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Karta zadania: delikatne wybrzuszenie pod kursorem, wyrazniejsza gdy otwarta */
+.item {
+  transition:
+    background var(--szybko) var(--ease),
+    border-color var(--szybko) var(--ease),
+    box-shadow var(--ruch) var(--ease),
+    transform var(--szybko) var(--ease);
+}
+.item:hover { border-color: hsl(220 20% 84%); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); }
+.item.otwarty { border-color: hsl(220 20% 82%); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06); }
+
+/* Przeciagany wiersz podnosi sie, zamiast blaknac (dawne opacity + dashed) */
+.item.dragging {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--accent);
+  transform: scale(1.015);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+  position: relative;
+  z-index: 3;
+  cursor: grabbing;
+}
+.item.dragging .handle { cursor: grabbing; color: var(--muted-foreground); }
+
+/* Nowe zadanie (recznie albo z realtime) wjezdza z gory */
+.item.wchodzi { animation: wjazd var(--ruch) var(--ease) both; }
+@keyframes wjazd {
+  from { opacity: 0; transform: translateY(-7px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Odhaczone odlatuje w prawo z ptaszkiem i przekresleniem, usuniete w lewo */
+.item.znika-done,
+.item.znika-del { pointer-events: none; }
+.item.znika-done { animation: odlot-w-prawo 190ms var(--ease) both; }
+.item.znika-del { animation: odlot-w-lewo 190ms var(--ease) both; }
+@keyframes odlot-w-prawo {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(16px) scale(0.98); }
+}
+@keyframes odlot-w-lewo {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(-16px) scale(0.98); }
+}
+.item.znika-done .item-name { text-decoration: line-through; color: var(--muted-foreground); }
+.item.znika-done > .item-row > .check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.item.znika-done > .item-row > .check::after { transform: scale(1) rotate(-45deg); }
+
+/* Kolko odhaczania z ptaszkiem, ktory wyskakuje przy najechaniu */
+.check {
+  position: relative;
+  transition:
+    background var(--szybko) var(--ease),
+    border-color var(--szybko) var(--ease),
+    transform var(--szybko) var(--ease);
+}
+.check::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 8px;
+  height: 4px;
+  margin-top: -1px;
+  border-left: 2px solid var(--foreground);
+  border-bottom: 2px solid var(--foreground);
+  transform: scale(0) rotate(-45deg);
+  transition: transform 160ms var(--ease);
+}
+.check:hover { transform: scale(1.12); }
+.check:hover::after { transform: scale(0.85) rotate(-45deg); }
+.check:active { transform: scale(0.92); }
+.check.mini::after { width: 6px; height: 3px; border-width: 0 0 1.5px 1.5px; }
+.check.mini.checked::after { transform: scale(1) rotate(-45deg); }
+
+/* Priorytet i kosz: reaguja na klik, nie tylko zmieniaja kolor */
+.prio-dot {
+  transition:
+    background var(--szybko) var(--ease),
+    border-color var(--szybko) var(--ease),
+    transform var(--szybko) var(--ease);
+}
+.prio-dot:hover { transform: scale(1.18); }
+.prio-dot:active { transform: scale(0.85); }
+.trash {
+  transition:
+    background var(--szybko) var(--ease),
+    color var(--szybko) var(--ease),
+    transform var(--szybko) var(--ease);
+}
+.trash:active { transform: scale(0.88); }
+.handle { transition: color var(--szybko) var(--ease); }
+
+/* Rozwijanie podzadan: wysokosc mierzona przez ResizeObserver, wiec dopisanie
+   podzadania tez rozjezdza panel plynnie */
+.rozwijane {
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    height var(--ruch) var(--ease),
+    opacity var(--ruch) var(--ease);
+}
+.rozwijane.otwarte { opacity: 1; }
+.podzadania { padding-bottom: 10px; }
+
+/* Podzadania wchodza po kolei, zeby otwarcie mialo kierunek */
+.rozwijane.otwarte .pod,
+.rozwijane.otwarte .pod-add-row { animation: wjazd-pod 240ms var(--ease) both; }
+.rozwijane.otwarte .pod:nth-child(2) { animation-delay: 30ms; }
+.rozwijane.otwarte .pod:nth-child(3) { animation-delay: 60ms; }
+.rozwijane.otwarte .pod:nth-child(4) { animation-delay: 90ms; }
+.rozwijane.otwarte .pod:nth-child(n + 5) { animation-delay: 110ms; }
+.rozwijane.otwarte .pod-add-row { animation-delay: 130ms; }
+@keyframes wjazd-pod {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.pod {
+  transition: opacity var(--szybko) var(--ease);
+}
+.pod-name { flex: 1; min-width: 0; }
+.pod.done span { transition: color var(--szybko) var(--ease); }
+
+/* Kasowanie podzadania: krzyzyk wychodzi z ukrycia dopiero na wierszu */
+.pod-trash {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--szybko) var(--ease),
+    color var(--szybko) var(--ease),
+    background var(--szybko) var(--ease);
+}
+.pod:hover .pod-trash { opacity: 1; }
+.pod-trash:hover { color: var(--destructive); background: var(--muted); }
+
+/* Dopisywanie podzadania w rozwinietym zadaniu */
+.pod-add-row { list-style: none; padding-right: 18px; }
+.pod-add-row form { width: 100%; }
+.pod-add {
+  width: 100%;
+  font-family: inherit;
+  font-size: 11.5px;
+  padding: 5px 9px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground);
+  outline: none;
+  transition:
+    border-color var(--szybko) var(--ease),
+    background var(--szybko) var(--ease);
+}
+.pod-add::placeholder { color: var(--muted-foreground); }
+.pod-add:focus { border-style: solid; border-color: var(--accent); background: var(--card); }
+
+/* Strzalka rozwiniecia z licznikiem "zrobione/razem" */
+.chevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  padding: 2px 3px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.45;
+  transition:
+    opacity var(--szybko) var(--ease),
+    background var(--szybko) var(--ease);
+}
+.item:hover .chevron,
+.chevron.open { opacity: 1; }
+.chevron:hover { background: var(--muted); }
+/* Wiersz bez podzadan nie oddaje miejsca na strzalke - wysuwa ja dopiero
+   najechanie, plynnie, zeby nazwa zadania miala maksimum szerokosci */
+.chevron.pusty {
+  width: 0;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    width var(--szybko) var(--ease),
+    padding var(--szybko) var(--ease),
+    opacity var(--szybko) var(--ease);
+}
+.item:hover .chevron.pusty,
+.chevron.pusty.open {
+  width: 19px;
+  padding: 2px 3px;
+  opacity: 0.75;
+}
+.pod-licznik { font-size: 10px; font-variant-numeric: tabular-nums; }
+.strzalka {
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+  transition: transform var(--ruch) var(--ease);
+}
+.chevron.open .strzalka { transform: rotate(90deg); }
+
+/* Zakladki, stopka, pola - te same czasy, zeby nic nie odstawalo */
+.tab {
+  transition:
+    background var(--szybko) var(--ease),
+    color var(--szybko) var(--ease);
+}
+.fade-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  animation: fade-in 200ms var(--ease) both;
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+.footer button,
+.icon-btn,
+.login button {
+  transition:
+    background var(--szybko) var(--ease),
+    border-color var(--szybko) var(--ease),
+    color var(--szybko) var(--ease),
+    transform var(--szybko) var(--ease);
+}
+.footer button:active,
+.login button:active { transform: scale(0.97); }
+.quick-add input,
+.quick-add select,
+.login input {
+  transition:
+    border-color var(--szybko) var(--ease),
+    box-shadow var(--szybko) var(--ease);
+}
+.quick-add input:focus { box-shadow: 0 0 0 3px var(--accent-soft); }
+.lzs-item { transition: background var(--szybko) var(--ease), transform var(--szybko) var(--ease); }
+.lzs-item:active { transform: scale(0.995); }
+.lzs-go { transition: transform var(--ruch) var(--ease); }
+.lzs-item:hover .lzs-go { transform: translateX(3px); }
+
+/* Chudy pasek przewijania - gruby systemowy psul wrazenie lekkosci */
+.lista::-webkit-scrollbar,
+.content::-webkit-scrollbar { width: 8px; }
+.lista::-webkit-scrollbar-track,
+.content::-webkit-scrollbar-track { background: transparent; }
+.lista::-webkit-scrollbar-thumb,
+.content::-webkit-scrollbar-thumb {
+  background: hsl(220 15% 86%);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 99px;
+}
+.lista::-webkit-scrollbar-thumb:hover,
+.content::-webkit-scrollbar-thumb:hover { background: hsl(220 12% 76%); background-clip: content-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
